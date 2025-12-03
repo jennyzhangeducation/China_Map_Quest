@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国地理闯关：省份简称</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 样式部分保持不变，美观大方 --- */
+        :root {
+            --primary: #3498db;
+            --success: #67C23A; /* 鲜艳的绿色 */
+            --bg-color: #f0f3f8;
+            --card-bg: #ffffff;
+            --text-dark: #2c3e50;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex; justify-content: space-between; align-items: center; z-index: 10;
+        }
+        
+        header h1 { margin: 0; font-size: 24px; letter-spacing: 1px; }
+        header .sub-text { font-size: 14px; opacity: 0.8; }
+
+        .main-container { display: flex; flex: 1; position: relative; }
+
+        .side-panel {
+            width: 300px; background: var(--card-bg); padding: 25px;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; z-index: 5;
+        }
+
+        .score-box {
+            text-align: center; background: #f8f9fa; border-radius: 15px; padding: 20px; border: 1px solid #e9ecef;
+        }
+
+        .score-num { font-size: 48px; font-weight: bold; color: var(--primary); line-height: 1; }
+        
+        .progress-track {
+            height: 10px; background: #e0e0e0; border-radius: 5px; margin-top: 15px; overflow: hidden;
+        }
+        .progress-fill { height: 100%; width: 0%; background: var(--success); transition: width 0.4s ease; }
+
+        .instructions {
+            margin-top: 30px; background: #fff8e1; border-left: 5px solid #ffca28;
+            padding: 15px; font-size: 14px; color: #5d4037; line-height: 1.6; border-radius: 4px;
+        }
+
+        #map-chart { flex: 1; background: #eef2f5; }
+
+        .modal-mask {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px);
+            display: none; justify-content: center; align-items: center; z-index: 999;
+        }
+
+        .game-card {
+            background: white; width: 340px; padding: 30px; border-radius: 20px;
+            text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .province-title { font-size: 28px; color: var(--text-dark); margin: 0 0 10px 0; }
+        .question-text { color: #7f8c8d; margin-bottom: 25px; }
+
+        .answer-input {
+            width: 200px; padding: 12px; font-size: 20px; text-align: center;
+            border: 2px solid #dfe6e9; border-radius: 10px; outline: none; transition: all 0.3s;
+        }
+
+        .answer-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1); }
+
+        .btn-submit {
+            margin-top: 25px; background: var(--primary); color: white; border: none;
+            padding: 12px 40px; font-size: 16px; border-radius: 50px; cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-submit:active { transform: scale(0.95); }
+
+        .feedback { height: 20px; margin-top: 15px; font-weight: bold; font-size: 14px; }
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translateX(0); } 25% { transform: translateX(-10px); } 50% { transform: translateX(10px); } 75% { transform: translateX(-10px); } 100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🇨🇳 中国地理闯关</h1>
+        <span class="sub-text">初中地理复习专用</span>
+    </header>
+
+    <div class="main-container">
+        <aside class="side-panel">
+            <div class="score-box">
+                <div class="score-title">当前得分</div>
+                <div class="score-num"><span id="current-score">0</span> / 34</div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progress-bar"></div>
+                </div>
+            </div>
+            <div class="instructions">
+                <strong>🎮 玩法说明：</strong>
+                <p>1. 点击地图上白色的省份。<br>
+                2. 输入它的<b>简称</b>（如“京”）。<br>
+                3. <span style="color:var(--success); font-weight:bold;">答对后地图会变绿</span>，试试看！</p>
+            </div>
+        </aside>
+        <div id="map-chart"></div>
+    </div>
+
+    <div class="modal-mask" id="quiz-modal">
+        <div class="game-card">
+            <h2 class="province-title" id="modal-title">北京市</h2>
+            <div class="question-text">请填写该省份/城市的简称</div>
+            <input type="text" class="answer-input" id="user-input" maxlength="4" autocomplete="off">
+            <div class="feedback" id="feedback-msg"></div>
+            <button class="btn-submit" onclick="submitAnswer()">确定</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. 数据配置
+        const provinceDatabase = {
+            "北京市": ["京"], "天津市": ["津"], "河北省": ["冀"], "山西省": ["晋"],
+            "内蒙古自治区": ["内蒙古"], "辽宁省": ["辽"], "吉林省": ["吉"], "黑龙江省": ["黑"],
+            "上海市": ["沪"], "江苏省": ["苏"], "浙江省": ["浙"], "安徽省": ["皖"],
+            "福建省": ["闽"], "江西省": ["赣"], "山东省": ["鲁"], "河南省": ["豫"],
+            "湖北省": ["鄂"], "湖南省": ["湘"], "广东省": ["粤"], "广西壮族自治区": ["桂"],
+            "海南省": ["琼"], "重庆市": ["渝"], "四川省": ["川", "蜀"], "贵州省": ["贵", "黔"],
+            "云南省": ["云", "滇"], "西藏自治区": ["藏"], "陕西省": ["陕", "秦"],
+            "甘肃省": ["甘", "陇"], "青海省": ["青"], "宁夏回族自治区": ["宁"],
+            "新疆维吾尔自治区": ["新"], "台湾省": ["台"], "香港特别行政区": ["港"], "澳门特别行政区": ["澳"]
+        };
+
+        let solvedProvinces = []; // 存放已答对的省份数据
+        let currentProvince = null;
+        let score = 0;
+        const totalCount = 34;
+
+        const myChart = echarts.init(document.getElementById('map-chart'));
+
+        // 2. 加载地图
+        $.get('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', function (geoJson) {
+            
+            echarts.registerMap('china', geoJson);
+
+            // 【关键修改】：只使用 series 配置地图，不再使用 geo，避免层级遮挡问题
+            renderMap(); 
+
+            // 监听点击
+            myChart.on('click', function (params) {
+                const name = params.name;
+                if (!provinceDatabase[name]) return;
+
+                // 检查是否已答对 (通过 name 查找)
+                const isSolved = solvedProvinces.some(p => p.name === name);
+                if (isSolved) {
+                    alert(name + " 已经回答正确啦！");
+                    return;
+                }
+                openModal(name);
+            });
+        });
+
+        // 封装渲染函数，确保每次都能彻底重绘
+        function renderMap() {
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}'
+                },
+                series: [{
+                    name: '中国地图',
+                    type: 'map',
+                    map: 'china',
+                    roam: true,
+                    zoom: 1.2,
+                    label: {
+                        show: true,
+                        color: '#666',
+                        fontSize: 10
+                    },
+                    itemStyle: {
+                        areaColor: '#ffffff', // 默认白色
+                        borderColor: '#bdc3c7',
+                        borderWidth: 1,
+                        shadowColor: 'rgba(0, 0, 0, 0.1)',
+                        shadowBlur: 10
+                    },
+                    emphasis: {
+                        label: { color: '#fff' },
+                        itemStyle: { areaColor: '#3498db' } // 鼠标悬浮蓝
+                    },
+                    select: { disabled: true },
+                    
+                    // 【关键点】：这里绑定数据，data 中的 itemStyle 优先级最高
+                    data: solvedProvinces 
+                }]
+            };
+            // setOption 时加上 notMerge: false 哪怕强制重绘也要保证颜色更新
+            myChart.setOption(option);
+        }
+
+        // 3. 交互逻辑
+        const modal = document.getElementById('quiz-modal');
+        const inputEl = document.getElementById('user-input');
+        const titleEl = document.getElementById('modal-title');
+        const feedbackEl = document.getElementById('feedback-msg');
+
+        function openModal(name) {
+            currentProvince = name;
+            titleEl.innerText = name;
+            inputEl.value = '';
+            feedbackEl.innerText = '';
+            inputEl.classList.remove('shake');
+            modal.style.display = 'flex';
+            setTimeout(() => inputEl.focus(), 100);
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        function submitAnswer() {
+            const val = inputEl.value.trim();
+            if (!val) return;
+
+            const correctAnswers = provinceDatabase[currentProvince];
+
+            if (correctAnswers.includes(val)) {
+                // --- 答对 ---
+                feedbackEl.style.color = 'var(--success)';
+                feedbackEl.innerText = '✅ 回答正确！';
+
+                // 1. 推入数据，显式指定颜色
+                solvedProvinces.push({
+                    name: currentProvince,
+                    selected: true, // 辅助属性
+                    itemStyle: {
+                        areaColor: '#67C23A', // 【强制变绿】
+                        borderColor: '#fff'
+                    },
+                    label: {
+                        show: true,
+                        color: '#fff',
+                        fontWeight: 'bold'
+                    }
+                });
+
+                // 2. 调用渲染函数，更新地图
+                renderMap();
+
+                // 3. 更新分数
+                score++;
+                document.getElementById('current-score').innerText = score;
+                document.getElementById('progress-bar').style.width = (score / totalCount * 100) + '%';
+
+                setTimeout(closeModal, 600);
+
+            } else {
+                // --- 答错 ---
+                feedbackEl.style.color = '#ff4757';
+                feedbackEl.innerText = '❌ 答案不对';
+                inputEl.classList.add('shake');
+                setTimeout(() => inputEl.classList.remove('shake'), 500);
+                inputEl.value = '';
+                inputEl.focus();
+            }
+        }
+
+        inputEl.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') submitAnswer();
+        });
+
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+
+        window.addEventListener('resize', () => myChart.resize());
+
+    </script>
+</body>
+</html>
